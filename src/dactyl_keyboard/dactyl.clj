@@ -23,11 +23,11 @@
 (def tenting-angle (/ π 12))            ; or, change this for more precise tenting control
 (def column-style
   (if (> nrows 5) :orthographic :standard))  ; options include :standard, :orthographic, and :fixed
-; (def column-style :fixed)
+(def column-style :fixed)
 
 (defn column-offset [column] (cond
   (= column 2) [0 2.82 -4.5]
-  (>= column 4) [0 -12 5.64]            ; original [0 -5.8 5.64]
+  (>= column 4) [0 -2.82 5.64]            ; original [0 -5.8 5.64]
   :else [0 0 0]))
 
 (def thumb-offsets [6 -3 7])
@@ -46,10 +46,10 @@
 ;;   http://patentimages.storage.googleapis.com/EP0219944A2/imgf0002.png
 ;; Fixed-z overrides the z portion of the column ofsets above.
 ;; NOTE: THIS DOESN'T WORK QUITE LIKE I'D HOPED.
-; (def fixed-angles [(deg2rad 10) (deg2rad 10) 0 0 0 (deg2rad -15) (deg2rad -15)])
-; (def fixed-x [-41.5 -22.5 0 20.3 41.4 65.5 89.6])  ; relative to the middle finger
-; (def fixed-z [12.1    8.3 0  5   10.7 14.5 17.5])
-; (def fixed-tenting (deg2rad 0))
+ (def fixed-angles [(deg2rad 10) (deg2rad 10) 0 0 0 (deg2rad -15) (deg2rad -15)])
+ (def fixed-x [-41.5 -22.5 0 20.3 41.4 65.5 89.6])  ; relative to the middle finger
+ (def fixed-z [12.1    8.3 0  5   10.7 14.5 17.5])
+ (def fixed-tenting (deg2rad 0))
 
 ;;;;;;;;;;;;;;;;;;;;;;;
 ;; General variables ;;
@@ -173,13 +173,13 @@
                                 (translate-fn [(- (* (- column centercol) column-x-delta)) 0 column-z-delta])
                                 (translate-fn (column-offset column)))
         placed-shape-fixed (->> shape
-;                                (rotate-y-fn  (nth fixed-angles column))
-;                                (translate-fn [(nth fixed-x column) 0 (nth fixed-z column)])
-;                                (translate-fn [0 0 (- (+ row-radius (nth fixed-z column)))])
-;                                (rotate-x-fn  (* α (- centerrow row)))
-;                                (translate-fn [0 0 (+ row-radius (nth fixed-z column))])
-;                                (rotate-y-fn  fixed-tenting)
-;                                (translate-fn [0 (second (column-offset column)) 0])
+                                (rotate-y-fn  (nth fixed-angles column))
+                                (translate-fn [(nth fixed-x column) 0 (nth fixed-z column)])
+                                (translate-fn [0 0 (- (+ row-radius (nth fixed-z column)))])
+                                (rotate-x-fn  (* α (- centerrow row)))
+                                (translate-fn [0 0 (+ row-radius (nth fixed-z column))])
+                                (rotate-y-fn  fixed-tenting)
+                                (translate-fn [0 (second (column-offset column)) 0])
                                 )]
     (->> (case column-style
           :orthographic placed-shape-ortho
@@ -258,8 +258,11 @@
   (apply union
          (concat
           ;; Row connections
-          (for [column (range 0 (dec ncols))
-                row (range 0 lastrow)]
+          (for [column (concat (range 0 (quot lastcol 2))
+                               (range (+ 1 (quot lastcol 2)) (dec ncols)))
+                row (range 0 nrows)
+                :when (or (.contains [1 2 3 4 5] column)
+                      (not= row lastrow))]
             (triangle-hulls
              (key-place (inc column) row web-post-tl)
              (key-place column row web-post-tr)
@@ -268,7 +271,9 @@
 
           ;; Column connections
           (for [column columns
-                row (range 0 cornerrow)]
+                row (range 0 lastrow)
+                :when (or (.contains [1 2 3 4 5] column)
+                      (not= row cornerrow))]
             (triangle-hulls
              (key-place column row web-post-bl)
              (key-place column row web-post-br)
@@ -276,8 +281,12 @@
              (key-place column (inc row) web-post-tr)))
 
           ;; Diagonal connections
-          (for [column (range 0 (dec ncols))
-                row (range 0 cornerrow)]
+          (for [column (concat (range 0 (quot lastcol 2))
+                               (range (+ 1 (quot lastcol 2)) (dec ncols)))
+;          (for [column (range 0 (dec ncols))
+                row (range 0 lastrow)
+                :when (or (.contains [1 2 3 4 5] column)
+                      (not= row cornerrow))]
             (triangle-hulls
              (key-place column row web-post-br)
              (key-place column (inc row) web-post-tr)
@@ -289,7 +298,7 @@
 ;;;;;;;;;;;;
 
 (def thumborigin
-  (map + (key-position 1 cornerrow [(/ mount-width 2) (- (/ mount-height 2)) 0])
+  (map + (key-position 1 lastrow [(/ mount-width 2) (- (/ mount-height 2)) 0])
          thumb-offsets))
 ; (pr thumborigin)
 
@@ -426,10 +435,9 @@
              (thumb-tl-place thumb-post-tr)
              (key-place 0 cornerrow web-post-br)
              (thumb-tr-place thumb-post-tl)
-             (key-place 1 cornerrow web-post-bl)
+             (key-place 1 lastrow web-post-bl)
              (thumb-tr-place thumb-post-tr)
-             (key-place 1 cornerrow web-post-br)
-             (key-place 2 lastrow web-post-tl)
+             (key-place 1 lastrow web-post-br)
              (key-place 2 lastrow web-post-bl)
              (thumb-tr-place thumb-post-tr)
              (key-place 2 lastrow web-post-bl)
@@ -698,15 +706,17 @@
                     connectors
                     thumb
                     thumb-connectors
-                    (difference (union case-walls
-                                       screw-insert-outers
-                                       teensy-holder)
-                                       ; usb-holder)
+                    (difference (union ;case-walls
+                                       ;screw-insert-outers
+                                       ;teensy-holder)
+                                       ; usb-holder
+                                       )
                                 ; rj9-space
                                 ; usb-holder-hole
-                                screw-insert-holes)
+                                ;screw-insert-holes
+                                )
                     ; rj9-holder
-                    wire-posts
+                    ;wire-posts
                     ; thumbcaps
                     ; caps
                     )
